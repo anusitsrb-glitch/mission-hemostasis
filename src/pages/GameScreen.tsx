@@ -4,6 +4,7 @@ import { GameState } from '../types';
 import { shuffleArray, formatTime } from '../lib/gameLogic';
 import { OrderingQuestion } from '../components/OrderingQuestion';
 import { MatchingQuestion } from '../components/MatchingQuestion';
+import { playClick, playCorrect, playWrong, playHint, playNext, playGameOver } from '../lib/sound';
 
 interface Props {
   game: {
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export function GameScreen({ game }: Props) {
-  const { state, selectOption, submitAnswer, nextQuestion, useHint, setScreen, resetGame } = game;
+  const { state, selectOption, submitAnswer, nextQuestion, useHint, setScreen } = game;
   const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [orderingAnswer, setOrderingAnswer] = useState<string[]>([]);
@@ -47,6 +48,12 @@ export function GameScreen({ game }: Props) {
     return () => clearInterval(interval);
   }, [state.startTime, state.screen]);
 
+  useEffect(() => {
+    if (state.hp === 0) {
+      playGameOver();
+    }
+  }, [state.hp]);
+
   if (!level || !question) return <div className="screen"><p>Loading...</p></div>;
 
   const canSubmit = () => {
@@ -60,22 +67,33 @@ export function GameScreen({ game }: Props) {
   };
 
   const handleSubmit = () => {
+    let isCorrect = false;
+
     if (question.type === 'ordering') {
       game.selectOption('__ordering__');
-      // We handle ordering via a special flow
-      const correctArr = JSON.parse(question.correctAnswer as string) as string[];
-      const isCorrect = JSON.stringify(orderingAnswer) === JSON.stringify(correctArr);
-      // Inject ordering answer into state
+      const correctArr = JSON.parse(question.correctAnswer as string);
+      isCorrect = JSON.stringify(orderingAnswer) === JSON.stringify(correctArr);
       game.state.selectedOptions = isCorrect ? [question.correctAnswer as string] : ['__wrong__'];
       submitAnswer();
     } else if (question.type === 'matching') {
       const correctObj = JSON.parse(question.correctAnswer as string);
-      const isCorrect = JSON.stringify(correctObj) === JSON.stringify(matchingAnswer);
+      isCorrect = JSON.stringify(correctObj) === JSON.stringify(matchingAnswer);
       game.state.selectedOptions = isCorrect ? [question.correctAnswer as string] : ['__wrong__'];
       submitAnswer();
     } else {
+      if (question.type === 'multi-select') {
+        const correctArr = JSON.parse(question.correctAnswer as string);
+        const selectedSorted = [...state.selectedOptions].sort();
+        const correctSorted = [...correctArr].sort();
+        isCorrect = JSON.stringify(selectedSorted) === JSON.stringify(correctSorted);
+      } else {
+        isCorrect = state.selectedOptions[0] === question.correctAnswer;
+      }
       submitAnswer();
     }
+
+    if (isCorrect) playCorrect();
+    else playWrong();
   };
 
   const hpArray = Array.from({ length: state.maxHp }, (_, i) => i < state.hp);
@@ -172,7 +190,12 @@ export function GameScreen({ game }: Props) {
                   <button
                     key={opt.id}
                     className={optClass}
-                    onClick={() => !state.showFeedback && selectOption(opt.id)}
+                    onClick={() => {
+                      if (!state.showFeedback) {
+                        playClick();
+                        selectOption(opt.id);
+                      }
+                    }}
                     disabled={state.showFeedback}
                   >
                     <span className="option-letter">{opt.id.toUpperCase()}</span>
@@ -203,7 +226,12 @@ export function GameScreen({ game }: Props) {
                 <button
                   key={opt.id}
                   className={optClass}
-                  onClick={() => !state.showFeedback && selectOption(opt.id)}
+                  onClick={() => {
+                    if (!state.showFeedback) {
+                      playClick();
+                      selectOption(opt.id);
+                    }
+                  }}
                   disabled={state.showFeedback}
                 >
                   <span className="checkbox-icon">{isSelected ? '☑️' : '⬜'}</span>
@@ -256,14 +284,17 @@ export function GameScreen({ game }: Props) {
         {!state.showFeedback ? (
           <div className="footer-actions">
             {state.hintLevel < 2 && (
-              <button className="btn btn-hint" onClick={useHint}>
+              <button className="btn btn-hint" onClick={() => { playHint();useHint();}}>
                 💡 Hint {state.hintLevel === 0 ? '1' : '2'}
                 {state.hintLevel === 1 && ' (-3)'}
               </button>
             )}
             <button
               className="btn btn-primary btn-submit"
-              onClick={handleSubmit}
+              onClick={() => {
+                playClick();
+                handleSubmit();
+              }}
               disabled={!canSubmit()}
             >
               ✅ ยืนยันคำตอบ
@@ -274,12 +305,24 @@ export function GameScreen({ game }: Props) {
             {state.hp === 0 ? (
               <div className="gameover-actions">
                 <p className="gameover-text">💔 Game Over!</p>
-                <button className="btn btn-primary" onClick={() => setScreen('result')}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    playClick();
+                    setScreen('result');
+                  }}
+                >
                   📊 ดูผลคะแนน
                 </button>
               </div>
             ) : (
-              <button className="btn btn-primary btn-next" onClick={nextQuestion}>
+              <button
+                className="btn btn-primary btn-next"
+                onClick={() => {
+                  playNext();
+                  nextQuestion();
+                }}
+              >
                 {state.currentQuestionIndex + 1 >= level.questions.length
                   ? state.currentLevel + 1 >= allLevels.length
                     ? '🏁 ดูผลคะแนน'
@@ -287,7 +330,13 @@ export function GameScreen({ game }: Props) {
                   : '➡️ คำถามต่อไป'}
               </button>
             )}
-            <button className="btn btn-outline btn-sm" onClick={() => setScreen('result')}>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={() => {
+                playClick();
+                setScreen('result');
+              }}
+            >
               🏁 จบเกม
             </button>
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { playClick } from '../lib/sound';
 
 interface Props {
   onNext: () => void;
@@ -14,7 +15,7 @@ export function SplashScreen({ onNext }: Props) {
   }, [onNext]);
 
   return (
-    <div className="screen splash-screen" onClick={onNext}>
+    <div className="screen splash-screen" onClick={() => {playClick();onNext();}}>
       <div className={`splash-content ${show ? 'visible' : ''}`}>
         <div className="splash-icon">🩸</div>
         <div className="splash-cells">
